@@ -2,9 +2,9 @@
 
 A Claude Code skill that sends delegable work to subagents on fixed models and effort levels, so the main chat keeps one model and its prompt cache stays warm.
 
-- `agents/`: the three tiers. `router-scout` (haiku, low effort, no edits), `router-worker` (sonnet, medium), `router-expert` (opus, high).
+- `agents/`: the three tiers. `router-scout` (haiku, low effort), `router-worker` (sonnet, medium), `router-expert` (opus, high). The scout is told never to edit, but it has Bash, so that rule rests on its instructions rather than its tools.
 - `skills/model-router/SKILL.md`: when to delegate, the brief template, how to accept or escalate a result, and lean mode.
-- `skills/model-router/routing.md`: which tier handles each task type, with splits for the engineer, writing, latex and web-ui-craft skills.
+- `skills/model-router/routing.md`: which tier handles each task type normally and in lean mode, with tables for the engineer, writing, latex and web-ui-craft skills.
 - `skills/model-router/router_log.py`: records each routed step and summarises results per task type and tier.
 
 ## Install
@@ -16,7 +16,7 @@ python scripts/install.py --dry-run
 python scripts/install.py
 ```
 
-The installer validates every file first, then copies the agents to `~/.claude/agents` and the skill to `~/.claude/skills/model-router`. Pass `--target DIR` to install elsewhere. Files in the target that this repository does not own are left alone.
+The installer validates every file first, then copies the agents to `~/.claude/agents` and the skill to `~/.claude/skills/model-router`. Pass `--target DIR` to install elsewhere. It owns `agents/router-*.md` and the `.md` and `.py` files in `skills/model-router/`, and removes any of those the repository no longer ships. Everything else in the target is left alone.
 
 ## Use
 
