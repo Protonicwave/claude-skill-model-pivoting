@@ -4,7 +4,8 @@ Record a step:  python router_log.py add <task-type> <tier> <done|failed|blocked
 Summarise:      python router_log.py summary
 
 The log is one JSON object per line at ~/.claude/model-router/log.jsonl,
-outside every project so no repository gains a stray file.
+outside every project so no repository gains a stray file. Each line keeps
+its time so the log can be read for a given week.
 """
 
 import argparse
@@ -21,7 +22,7 @@ RESULTS: tuple[str, ...] = get_args(Result)
 DEFAULT_LOG_PATH = Path.home() / ".claude" / "model-router" / "log.jsonl"
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class Summary:
     counts: dict[tuple[str, str], Counter[str]] = field(default_factory=dict)
     skipped_lines: int = 0
@@ -50,8 +51,8 @@ def parse_entry(line: str) -> tuple[str, str, str] | None:
     task_type, tier, result = (
         entry.get(key) for key in ("task_type", "tier", "result")
     )
-    if isinstance(task_type, str) and isinstance(tier, str) and isinstance(result, str):
-        return task_type, tier, result
+    if isinstance(task_type, str) and isinstance(tier, str) and result in RESULTS:
+        return task_type, tier, str(result)
     return None
 
 
@@ -105,5 +106,5 @@ def main() -> int:
     return 0
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover: argument parsing over tested functions
     sys.exit(main())
