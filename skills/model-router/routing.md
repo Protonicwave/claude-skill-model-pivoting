@@ -1,56 +1,58 @@
 # Routing table
 
-`main` means the step stays in the main chat. A row marked "expert in lean mode" goes to router-expert while lean mode is on.
+`Tier` applies normally and `Lean tier` while lean mode is on. `main` means the step stays in the main chat. The first column is the task type to log.
 
-## Task types
+When a skill's table below covers the step, it takes precedence over the general table.
 
-| Task type | Tier | Check that confirms it |
-|---|---|---|
-| search | router-scout | every reported path and line exists |
-| read-logs | router-scout | the quoted lines appear in the log |
-| run-checks | router-scout | the command's exit code and output |
-| routine-edit | router-worker | the named test, build or checker passes |
-| mechanical-fix | router-worker | the linter, type-checker or build is clean |
-| review | router-expert | each finding settled in the main chat with a test or a rerun |
-| escalation | router-expert | the check from the original brief |
-| design | main | none; judgement, expert in lean mode |
-| hard-debug | main | the reproducing test passes; expert in lean mode |
-| small-task | main | under five tool calls, not worth a brief |
-| prose | main | voice and judgement do not survive a brief |
+## General
+
+| Task type | Tier | Lean tier | Check that confirms it |
+|---|---|---|---|
+| search | router-scout | router-scout | every reported path and line exists |
+| read-logs | router-scout | router-scout | the quoted lines appear in the log |
+| run-checks | router-scout | router-scout | the command's exit code and output |
+| routine-edit | router-worker | router-worker | the named test, build or checker passes |
+| mechanical-fix | router-worker | router-worker | the linter, type-checker or build is clean |
+| review | router-expert | router-expert | each finding settled in the main chat with a test or a rerun |
+| design | main | router-expert | the main chat reviews the proposal before acting on it |
+| hard-debug | main | router-expert | a reproducing test that now passes |
+| prose | main | main | the writing skill's own checks |
 
 ## engineer
 
-| Step | Tier | Check that confirms it |
-|---|---|---|
-| Orient across many directories | router-scout | paths and lines exist |
-| Plan and settle ambiguities | main | user approval |
-| Phase work fully specified by the plan's test list | router-worker | the phase's tests and the full suite pass |
-| Phase work needing a design decision | main | expert in lean mode |
-| Commit, push, plan update | main | the pre-commit hook |
-| Finish: independent review | router-expert | each finding settled with evidence, as engineer specifies |
+| Task type | Tier | Lean tier | Check that confirms it |
+|---|---|---|---|
+| engineer-orient | router-scout | router-scout | every reported path and line exists |
+| engineer-plan | main | main | the user approves the plan |
+| engineer-phase-specified | router-worker | router-worker | the phase's tests and the full suite pass |
+| engineer-phase-design | main | router-expert | the phase's tests and the full suite pass |
+| engineer-commit | main | main | the pre-commit hook passes |
+| engineer-review | router-expert | router-expert | each finding settled with evidence, as engineer specifies |
+
+`engineer-phase-specified` is phase work the plan's test list fully specifies. Phase work that needs a design decision is `engineer-phase-design`.
 
 ## writing
 
-| Step | Tier | Check that confirms it |
-|---|---|---|
-| Register, outline, draft and revise | main | the reader test in the writing skill |
-| Run check.py on a draft and list its findings | router-scout | the checker's output |
-| Find candidate sources | router-scout | verify.py confirms each one |
-| Verify references and quotations | router-scout | verify.py output |
+| Task type | Tier | Lean tier | Check that confirms it |
+|---|---|---|---|
+| writing-draft | main | main | the reader test in the writing skill |
+| writing-check | router-scout | router-scout | the output of check.py |
+| writing-find-sources | router-scout | router-scout | verify.py confirms each source |
+| writing-verify | router-scout | router-scout | the output of verify.py |
 
 ## latex
 
-| Step | Tier | Check that confirms it |
-|---|---|---|
-| Fix build errors, warnings and overfull boxes | router-worker | a clean build and source lint |
-| Locate an undefined reference or citation | router-scout | the file and line exist |
-| Structure and house-style decisions | main | expert in lean mode |
-| Final look at the rendered pages | main | visual judgement |
+| Task type | Tier | Lean tier | Check that confirms it |
+|---|---|---|---|
+| latex-fix-build | router-worker | router-worker | a clean build and source lint |
+| latex-locate | router-scout | router-scout | the file and line exist |
+| latex-structure | main | router-expert | the main chat reviews the proposal before acting on it |
+| latex-final-look | main | main | the main chat views the rendered pages |
 
 ## web-ui-craft
 
-| Step | Tier | Check that confirms it |
-|---|---|---|
-| Design brief and critique pass | main | expert in lean mode |
-| Build components from the agreed brief | router-worker | build, type-check and tests pass |
-| Accessibility or performance audit with tools | router-scout | the tool's report |
+| Task type | Tier | Lean tier | Check that confirms it |
+|---|---|---|---|
+| ui-design | main | router-expert | the main chat reviews the brief or critique before acting on it |
+| ui-build | router-worker | router-worker | build, type-check and tests pass |
+| ui-audit | router-scout | router-scout | the audit tool's report |
