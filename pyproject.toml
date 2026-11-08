@@ -16,8 +16,8 @@ max-complexity = 10
 
 [tool.mypy]
 strict = true
-files = ["scripts", "tests"]
+files = ["scripts", "skills/model-router", "tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["scripts"]
+pythonpath = ["scripts", "skills/model-router"]

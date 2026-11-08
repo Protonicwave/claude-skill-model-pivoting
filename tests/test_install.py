@@ -4,11 +4,12 @@ from install import install
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 AGENT_NAMES = ["router-expert.md", "router-scout.md", "router-worker.md"]
+SKILL_FILES = ["SKILL.md", "router_log.py", "routing.md"]
 
 
 def test_dry_run_lists_files_and_writes_nothing(tmp_path: Path) -> None:
     copied = install(REPO_ROOT, tmp_path, dry_run=True)
-    assert sorted(path.name for path in copied) == AGENT_NAMES
+    assert sorted(path.name for path in copied) == sorted(AGENT_NAMES + SKILL_FILES)
     assert list(tmp_path.iterdir()) == []
 
 
@@ -33,3 +34,11 @@ def test_leaves_unrelated_target_files_alone(tmp_path: Path) -> None:
     other.write_text("keep", encoding="utf-8")
     install(REPO_ROOT, tmp_path, dry_run=False)
     assert other.read_text(encoding="utf-8") == "keep"
+
+
+def test_copies_skill_into_target(tmp_path: Path) -> None:
+    install(REPO_ROOT, tmp_path, dry_run=False)
+    relative = Path("skills") / "model-router"
+    for name in SKILL_FILES:
+        source = (REPO_ROOT / relative / name).read_bytes()
+        assert (tmp_path / relative / name).read_bytes() == source

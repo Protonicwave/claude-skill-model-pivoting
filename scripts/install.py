@@ -11,7 +11,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from validate import validate
+from validate import SKILL_DIR, validate
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_TARGET = Path.home() / ".claude"
@@ -19,9 +19,9 @@ DEFAULT_TARGET = Path.home() / ".claude"
 
 def owned_files(source_root: Path) -> list[Path]:
     """Paths, relative to the repository root, that the installer copies."""
-    return sorted(
-        path.relative_to(source_root) for path in (source_root / "agents").glob("*.md")
-    )
+    agents = (source_root / "agents").glob("*.md")
+    skill = (path for path in (source_root / SKILL_DIR).iterdir() if path.is_file())
+    return sorted(path.relative_to(source_root) for path in [*agents, *skill])
 
 
 def install(source_root: Path, target_root: Path, *, dry_run: bool) -> list[Path]:
