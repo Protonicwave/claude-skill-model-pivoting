@@ -18,7 +18,7 @@ Find the step's row in `routing.md`: the active skill's table if it has one, oth
 
 1. The tier is a subagent, not `main`.
 2. The row's check can confirm the result without trusting the subagent.
-3. The step would bring more text into the main chat than the subagent starts with. File contents, logs and command output stay in the main chat's context and are re-read at the main model's price on every later turn, while a subagent pays once for its starting prompt: about 16k tokens for router-scout and more for the worker and expert, whose instructions are longer. `usage_report.py` prints the current figures as first-turn context. A step that reads a few short files or runs one quiet command stays in the main chat whatever the table says.
+3. The step would bring more text into the main chat than the subagent starts with. File contents, logs and command output stay in the main chat's context and are re-read at the main model's price on every later turn, while a subagent pays once for its starting prompt: about 16k tokens on every tier. `usage_report.py` prints the current figures as first-turn context. A step that reads a few short files or runs one quiet command stays in the main chat whatever the table says.
 
 When no row fits, keep the step in the main chat. When unsure between two tiers, pick the higher one: overpaying costs the price difference, while a failed cheap attempt costs both runs.
 
