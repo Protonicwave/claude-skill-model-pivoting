@@ -42,7 +42,7 @@ def logged(log: Path) -> dict[tuple[str, str], dict[str, int]]:
 def test_logs_task_type_tier_and_result(tmp_path: Path) -> None:
     transcript = write_transcript(tmp_path / "agent.jsonl", [user_line(BRIEF)])
     log = tmp_path / "log.jsonl"
-    assert log_result(stop_payload(transcript), log)
+    log_result(stop_payload(transcript), log)
     assert logged(log) == {("search", "router-scout"): {"done": 1}}
 
 
@@ -58,7 +58,7 @@ def test_reads_result_through_emphasis_and_case(
 ) -> None:
     transcript = write_transcript(tmp_path / "agent.jsonl", [user_line(BRIEF)])
     log = tmp_path / "log.jsonl"
-    assert log_result(stop_payload(transcript, reply), log)
+    log_result(stop_payload(transcript, reply), log)
     assert logged(log) == {("search", "router-scout"): {result: 1}}
 
 
@@ -70,7 +70,7 @@ def test_brief_is_the_first_user_line(tmp_path: Path) -> None:
     ]
     transcript = write_transcript(tmp_path / "agent.jsonl", lines)
     log = tmp_path / "log.jsonl"
-    assert log_result(stop_payload(transcript), log)
+    log_result(stop_payload(transcript), log)
     assert logged(log) == {("search", "router-scout"): {"done": 1}}
 
 
@@ -81,7 +81,7 @@ def test_brief_is_the_first_user_line(tmp_path: Path) -> None:
 def test_skips_reply_without_a_known_result(tmp_path: Path, reply: str) -> None:
     transcript = write_transcript(tmp_path / "agent.jsonl", [user_line(BRIEF)])
     log = tmp_path / "log.jsonl"
-    assert not log_result(stop_payload(transcript, reply), log)
+    log_result(stop_payload(transcript, reply), log)
     assert not log.exists()
 
 
@@ -99,7 +99,7 @@ def test_skips_reply_without_a_known_result(tmp_path: Path, reply: str) -> None:
 def test_skips_brief_without_a_task_type(tmp_path: Path, lines: list[object]) -> None:
     transcript = write_transcript(tmp_path / "agent.jsonl", lines)
     log = tmp_path / "log.jsonl"
-    assert not log_result(stop_payload(transcript), log)
+    log_result(stop_payload(transcript), log)
     assert not log.exists()
 
 
@@ -109,14 +109,15 @@ def test_skips_malformed_lines_before_the_brief(tmp_path: Path) -> None:
         "not json\n[1]\n" + json.dumps(user_line(BRIEF)) + "\n", encoding="utf-8"
     )
     log = tmp_path / "log.jsonl"
-    assert log_result(stop_payload(transcript), log)
+    log_result(stop_payload(transcript), log)
 
 
 def test_brief_past_the_scan_limit_is_not_read(tmp_path: Path) -> None:
     filler: list[object] = [{"type": "system"}] * MAX_BRIEF_SCAN_LINES
     transcript = write_transcript(tmp_path / "agent.jsonl", [*filler, user_line(BRIEF)])
     log = tmp_path / "log.jsonl"
-    assert not log_result(stop_payload(transcript), log)
+    log_result(stop_payload(transcript), log)
+    assert not log.exists()
 
 
 @pytest.mark.parametrize(
@@ -126,7 +127,7 @@ def test_skips_agents_outside_the_router(tmp_path: Path, agent_type: object) -> 
     transcript = write_transcript(tmp_path / "agent.jsonl", [user_line(BRIEF)])
     log = tmp_path / "log.jsonl"
     payload = {**stop_payload(transcript), "agent_type": agent_type}
-    assert not log_result(payload, log)
+    log_result(payload, log)
     assert not log.exists()
 
 
@@ -144,20 +145,22 @@ def test_skips_payload_with_missing_fields(
     write_transcript(tmp_path / "agent.jsonl", [user_line(BRIEF)])
     log = tmp_path / "log.jsonl"
     payload = {**stop_payload(tmp_path / "agent.jsonl"), **changes}
-    assert not log_result(payload, log)
+    log_result(payload, log)
     assert not log.exists()
 
 
 def test_skips_transcript_that_is_a_directory(tmp_path: Path) -> None:
     log = tmp_path / "log.jsonl"
-    assert not log_result(stop_payload(tmp_path), log)
+    log_result(stop_payload(tmp_path), log)
+    assert not log.exists()
 
 
 def test_skips_transcript_that_is_not_utf8(tmp_path: Path) -> None:
     transcript = tmp_path / "agent.jsonl"
     transcript.write_bytes(b"\xff\xfe not text\n")
     log = tmp_path / "log.jsonl"
-    assert not log_result(stop_payload(transcript), log)
+    log_result(stop_payload(transcript), log)
+    assert not log.exists()
 
 
 def run_hook(stdin: bytes, home: Path) -> subprocess.CompletedProcess[bytes]:

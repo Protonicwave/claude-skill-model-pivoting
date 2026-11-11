@@ -57,30 +57,27 @@ def read_brief(transcript: Path) -> str | None:
     return None
 
 
-def log_result(payload: dict[str, object], log_path: Path) -> bool:
-    """Append the payload's routed step to log_path; False if it is not one."""
+def log_result(payload: dict[str, object], log_path: Path) -> None:
+    """Append the payload's routed step to log_path, if it is one."""
     agent_type = payload.get("agent_type")
     transcript = payload.get("agent_transcript_path")
     reply = payload.get("last_assistant_message")
     if not (isinstance(agent_type, str) and agent_type.startswith(ROUTER_AGENT_PREFIX)):
-        return False
+        return
     if not (isinstance(transcript, str) and isinstance(reply, str)):
-        return False
+        return
     result = parse_result(reply)
     try:
         brief = read_brief(Path(transcript))
     except (OSError, UnicodeDecodeError):
-        return False
+        return
     task_type = labelled_value(brief, TASK_TYPE_LABEL) if brief else None
     if result is None or task_type is None:
-        return False
+        return
     append_step(log_path, task_type, agent_type, result)
-    return True
 
 
 def main() -> int:  # pragma: no cover: wiring, proved by the subprocess tests
-    # An unlogged step is the expected outcome for any other subagent, so
-    # there is nothing to report either way.
     log_result(read_payload(sys.stdin.buffer), DEFAULT_LOG_PATH)
     return 0
 
