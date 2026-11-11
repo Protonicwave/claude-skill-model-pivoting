@@ -9,7 +9,8 @@ It also registers the router's hooks in the target's `settings.json`. It
 owns every hook whose command points into `skills/model-router/`, replaces
 those on each run, and keeps every other setting and hook. Refuses to
 install, before writing anything, if validation fails or `settings.json`
-cannot be read.
+cannot be read. If `settings.json` cannot be written once the files are
+copied, it says so and exits with status 1; running again finishes the job.
 """
 
 import argparse
@@ -203,7 +204,12 @@ def run(source_root: Path, target_root: Path, *, dry_run: bool) -> int:
         print(f"{copy_verb} {target}")
     for target in report.removed:
         print(f"{remove_verb} {target}")
-    print(register_hooks(target_root, settings, dry_run=dry_run))
+    try:
+        print(register_hooks(target_root, settings, dry_run=dry_run))
+    except OSError as error:
+        path = target_root / SETTINGS_NAME
+        print(f"Hooks not registered. {path} cannot be written: {error}")
+        return 1
     return 0
 
 

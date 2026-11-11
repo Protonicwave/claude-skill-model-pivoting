@@ -22,7 +22,7 @@ python scripts/install.py
 
 The installer validates every file first, then copies the agents to `~/.claude/agents` and the skill to `~/.claude/skills/model-router`. Pass `--target DIR` to install elsewhere. It owns `agents/router-*.md` and the `.md` and `.py` files in `skills/model-router/`, and removes any of those the repository no longer ships. Everything else in the target is left alone.
 
-It also registers the three hooks in `~/.claude/settings.json`, running them with the Python that ran the installer. It owns every hook whose command points into `skills/model-router/` and replaces those on each run; other settings and hooks are kept. If `settings.json` is not valid JSON, nothing is installed and the parse error is printed. The file is rewritten with two-space indentation when the hooks change.
+It also registers the three hooks in `~/.claude/settings.json`, running them with the Python that ran the installer. It owns every hook whose command points into `skills/model-router/` and replaces those on each run; other settings and hooks are kept. If `settings.json` cannot be read as UTF-8 JSON, nothing is installed and the reason is printed. If it cannot be written after the files are copied, the installer says so and exits with status 1, and running it again finishes the job. The file is rewritten with two-space indentation when the hooks change.
 
 ## Use
 

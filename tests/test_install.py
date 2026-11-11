@@ -274,3 +274,14 @@ def test_refuses_settings_that_cannot_be_read(
     assert run(REPO_ROOT, tmp_path, dry_run=False) == 1
     assert f"Not installed. {path} cannot be read" in capsys.readouterr().out
     assert sorted(p.name for p in tmp_path.iterdir()) == ["settings.json"]
+
+
+def test_reports_settings_that_cannot_be_written(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = write_settings(tmp_path, {"hooks": {}})
+    (tmp_path / "settings.json.tmp").mkdir()
+    assert run(REPO_ROOT, tmp_path, dry_run=False) == 1
+    output = capsys.readouterr().out
+    assert f"Hooks not registered. {path} cannot be written" in output
+    assert path.read_text(encoding="utf-8") == '{"hooks": {}}'
