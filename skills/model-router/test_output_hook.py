@@ -2,7 +2,9 @@
 
 Passing tests print a line each, and that output stays in the main chat's
 context for the rest of the session. This hook adds the runner's quiet flag
-to a bare pytest, cargo test or npm test command, so mostly failures print.
+to a bare pytest or cargo test command, so mostly failures print. npm test
+is left alone: its quiet flag hides npm's own lines, including its errors,
+but not the test runner's.
 
 It adds a flag and never pipes the output: a pipe through tail would replace
 the test's exit code with tail's, and results are accepted on exit codes. A
@@ -50,12 +52,6 @@ QUIET_RULES = (
     ),
     QuietRule(
         re.compile(r"\s*cargo test(?=\s|$)"), "-q", "qv", ("--quiet", "--verbose")
-    ),
-    QuietRule(
-        re.compile(r"\s*npm test(?=\s|$)"),
-        "--silent",
-        "sqd",
-        ("--silent", "--quiet", "--verbose", "--loglevel"),
     ),
 )
 

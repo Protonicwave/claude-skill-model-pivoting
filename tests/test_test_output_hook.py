@@ -29,8 +29,6 @@ def bash_payload(tool_input: object) -> dict[str, object]:
         ("  pytest", "  pytest -q"),
         ("cargo test", "cargo test -q"),
         ("cargo test parser -- --nocapture", "cargo test -q parser -- --nocapture"),
-        ("npm test", "npm test --silent"),
-        ("npm test -- --watch=false", "npm test --silent -- --watch=false"),
     ],
 )
 def test_bare_test_command_gets_quiet_flag(command: str, expected: str) -> None:
@@ -74,12 +72,6 @@ def test_compound_command_is_untouched(command: str) -> None:
         "cargo test --quiet",
         "cargo test -vv",
         "cargo test -- --quiet",
-        "npm test -s",
-        "npm test --silent",
-        "npm test --loglevel=warn",
-        "npm test --loglevel warn",
-        "npm test -d",
-        "npm test --verbose",
     ],
 )
 def test_command_with_verbosity_flag_is_untouched(command: str) -> None:
@@ -95,6 +87,7 @@ def test_command_with_verbosity_flag_is_untouched(command: str) -> None:
         "pytest-watch",
         "python -m pytest_cov",
         "cargo testing",
+        "npm test",
         "npm run test",
         "echo pytest",
         "'pytest'",
