@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 from router_log import append_step, format_summary, summarise
@@ -33,12 +34,14 @@ def test_summary_skips_malformed_lines(tmp_path: Path) -> None:
         '{"task_type": "search"}',
         "[1, 2]",
         '{"task_type": "a", "tier": "b", "result": "maybe"}',
+        '{"task_type": "a", "tier": "b", "result": "done"}',
+        '{"time": "Tuesday", "task_type": "a", "tier": "b", "result": "done"}',
     ]
     with log.open("a", encoding="utf-8") as stream:
         stream.writelines(line + "\n" for line in malformed)
     summary = summarise(log)
     assert summary.counts == {("search", "router-scout"): {"done": 1}}
-    assert summary.skipped_lines == 4
+    assert summary.skipped_lines == 6
 
 
 def test_summary_of_missing_log_is_empty(tmp_path: Path) -> None:
@@ -60,3 +63,21 @@ def test_format_shows_counts_and_skipped_lines(tmp_path: Path) -> None:
 def test_format_of_empty_summary(tmp_path: Path) -> None:
     summary = summarise(tmp_path / "absent.jsonl")
     assert format_summary(summary) == "No routed steps logged yet."
+
+
+def test_summary_since_counts_only_later_steps(tmp_path: Path) -> None:
+    log = tmp_path / "log.jsonl"
+    entries = [
+        {"time": "2026-11-09T23:59:59+00:00", "result": "failed"},
+        {"time": "2026-11-10T00:00:00+00:00", "result": "done"},
+    ]
+    log.write_text(
+        "".join(
+            json.dumps({**entry, "task_type": "search", "tier": "router-scout"}) + "\n"
+            for entry in entries
+        ),
+        encoding="utf-8",
+    )
+    summary = summarise(log, since=datetime(2026, 11, 10, tzinfo=UTC))
+    assert summary.counts == {("search", "router-scout"): {"done": 1}}
+    assert summary.skipped_lines == 0

@@ -37,24 +37,44 @@ def append_step(log_path: Path, task_type: str, tier: str, result: Result) -> No
         stream.write(json.dumps(entry) + "\n")
 
 
-def parse_entry(line: str) -> tuple[str, str, str] | None:
-    """Return (task_type, tier, result) for a well-formed line, else None."""
+def parse_time(value: object) -> datetime | None:
+    """An ISO 8601 time, read as UTC when it names no zone."""
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def parse_entry(line: str) -> tuple[datetime, str, str, str] | None:
+    """Return (time, task_type, tier, result) for a well-formed line, else None."""
     try:
         entry = json.loads(line)
     except json.JSONDecodeError:
         return None
     if not isinstance(entry, dict):
         return None
+    logged_at = parse_time(entry.get("time"))
     task_type, tier, result = (
         entry.get(key) for key in ("task_type", "tier", "result")
     )
-    if isinstance(task_type, str) and isinstance(tier, str) and result in RESULTS:
-        return task_type, tier, str(result)
+    if (
+        logged_at is not None
+        and isinstance(task_type, str)
+        and isinstance(tier, str)
+        and result in RESULTS
+    ):
+        return logged_at, task_type, tier, str(result)
     return None
 
 
-def summarise(log_path: Path) -> Summary:
-    """Count results per (task type, tier). A missing log is an empty summary."""
+def summarise(log_path: Path, since: datetime | None = None) -> Summary:
+    """Count results per (task type, tier) from since onwards.
+
+    A missing log is an empty summary.
+    """
     counts: defaultdict[tuple[str, str], Counter[str]] = defaultdict(Counter)
     skipped_lines = 0
     if not log_path.exists():
@@ -65,8 +85,9 @@ def summarise(log_path: Path) -> Summary:
             if parsed is None:
                 skipped_lines += 1
                 continue
-            task_type, tier, result = parsed
-            counts[(task_type, tier)][result] += 1
+            logged_at, task_type, tier, result = parsed
+            if since is None or logged_at >= since:
+                counts[(task_type, tier)][result] += 1
     return Summary(counts=dict(counts), skipped_lines=skipped_lines)
 
 

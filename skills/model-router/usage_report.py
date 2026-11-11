@@ -19,7 +19,7 @@ from pathlib import Path
 from statistics import median, quantiles
 
 from result_hook import ROUTER_AGENT_PREFIX
-from router_log import DEFAULT_LOG_PATH, format_summary, summarise
+from router_log import DEFAULT_LOG_PATH, format_summary, parse_time, summarise
 
 PROJECTS_DIR = Path.home() / ".claude" / "projects"
 MAIN_SOURCE = "main"
@@ -155,16 +155,6 @@ def parse_usage(value: object) -> Usage | None:
     )
     valid = [count for count in counts if count is not None]
     return Usage(*valid) if len(valid) == len(counts) else None
-
-
-def parse_time(value: object) -> datetime | None:
-    if not isinstance(value, str):
-        return None
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
 def parse_turn(
@@ -425,7 +415,7 @@ def main() -> int:  # pragma: no cover: argument parsing over tested functions
     )
     print(format_report(read_turns(PROJECTS_DIR, since)))
     print()
-    print(format_summary(summarise(DEFAULT_LOG_PATH)))
+    print(format_summary(summarise(DEFAULT_LOG_PATH, since)))
     return 0
 
 
