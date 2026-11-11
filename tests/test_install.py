@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from install import PYTHON_PATH, install, run
+from install import PYTHON_PATH, ROUTER_HOOKS, install, run
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = Path("skills") / "model-router"
@@ -15,6 +15,7 @@ SKILL_FILES = [
     "router_log.py",
     "routing.md",
     "spawn_hook.py",
+    "test_output_hook.py",
     "usage_report.py",
 ]
 
@@ -130,7 +131,11 @@ def router_commands(document: dict[str, Any]) -> dict[tuple[str, str | None], st
 def test_registers_router_hooks_in_new_settings(tmp_path: Path) -> None:
     assert run(REPO_ROOT, tmp_path, dry_run=False) == 0
     commands = router_commands(read_settings(tmp_path))
-    assert set(commands) == {("PreToolUse", "Agent"), ("SubagentStop", None)}
+    assert set(commands) == {
+        ("PreToolUse", "Agent"),
+        ("PreToolUse", "Bash"),
+        ("SubagentStop", None),
+    }
     for command in commands.values():
         python, script = command.split('" "')
         assert python == f'"{PYTHON_PATH}'
@@ -141,7 +146,7 @@ def test_registers_router_hooks_in_new_settings(tmp_path: Path) -> None:
 def test_empty_settings_file_counts_as_empty_object(tmp_path: Path, text: str) -> None:
     (tmp_path / "settings.json").write_text(text, encoding="utf-8")
     assert run(REPO_ROOT, tmp_path, dry_run=False) == 0
-    assert len(router_commands(read_settings(tmp_path))) == 2
+    assert len(router_commands(read_settings(tmp_path))) == len(ROUTER_HOOKS)
 
 
 def test_keeps_foreign_settings_and_hooks(tmp_path: Path) -> None:
@@ -163,7 +168,7 @@ def test_keeps_foreign_settings_and_hooks(tmp_path: Path) -> None:
     assert document["hooks"]["SessionStart"] == [FOREIGN_SESSION_HOOK]
     assert document["hooks"]["PreToolUse"][:3] == [FOREIGN_BASH_HOOK, *ODD_GROUPS]
     assert document["hooks"]["Stop"] == []
-    assert len(router_commands(document)) == 2
+    assert len(router_commands(document)) == len(ROUTER_HOOKS)
 
 
 def test_replaces_router_hooks_from_an_earlier_install(tmp_path: Path) -> None:
@@ -183,7 +188,7 @@ def test_replaces_router_hooks_from_an_earlier_install(tmp_path: Path) -> None:
     assert "Notification" not in hooks
     assert hooks["PreToolUse"][0] == FOREIGN_BASH_HOOK
     assert "/old/" not in json.dumps(hooks)
-    assert len(router_commands({"hooks": hooks})) == 2
+    assert len(router_commands({"hooks": hooks})) == len(ROUTER_HOOKS)
 
 
 def test_second_install_leaves_settings_unchanged(

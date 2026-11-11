@@ -31,6 +31,7 @@ HOOK_TIMEOUT_SECONDS = 10
 # (event, matcher or None for every tool, script in the skill directory)
 ROUTER_HOOKS: tuple[tuple[str, str | None, str], ...] = (
     ("PreToolUse", "Agent", "spawn_hook.py"),
+    ("PreToolUse", "Bash", "test_output_hook.py"),
     ("SubagentStop", None, "result_hook.py"),
 )
 
