@@ -297,13 +297,13 @@ def cache_misses(turns: list[Turn]) -> list[Turn]:
 
 
 def five_hour_blocks(turns: list[Turn]) -> list[Block]:
-    """Group turns into the windows usage limits are counted in, oldest first.
+    """Group turns, oldest first, into the windows usage limits are counted in.
 
     A window opens on the hour of the first turn after the previous window
     closed, and stays open for BLOCK_DURATION.
     """
     blocks: list[Block] = []
-    for turn in sorted(turns, key=lambda turn: turn.time):
+    for turn in turns:
         cost = cost_usd(turn.model, turn.usage) or 0.0
         if blocks and turn.time < blocks[-1].start + BLOCK_DURATION:
             last = blocks[-1]
