@@ -15,6 +15,7 @@ SKILL_FILES = [
     "router_log.py",
     "routing.md",
     "spawn_hook.py",
+    "usage_report.py",
 ]
 
 
