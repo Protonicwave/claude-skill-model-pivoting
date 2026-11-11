@@ -9,7 +9,6 @@ EFFORT_LEVELS = frozenset({"low", "medium", "high", "xhigh", "max"})
 # Without `tools` an agent receives every tool the session has, and the tool
 # definitions alone more than double its first prompt.
 REQUIRED_AGENT_FIELDS = ("name", "description", "model", "effort", "tools")
-TOOL_LIST_SEPARATOR = ","
 # Claude Code ignores a tool name it does not recognise, so a lower-case or
 # space-separated entry silently removes the tool rather than failing.
 TOOL_NAME_PATTERN = re.compile(r"[A-Z][A-Za-z]*|mcp__[A-Za-z0-9_-]+")
@@ -95,7 +94,7 @@ def check_tools(path: Path, tools: str) -> list[str]:
         return []  # reported as a missing field
     return [
         f"{path}: tool '{tool}' is not a tool name such as Read or mcp__server__tool"
-        for tool in (entry.strip() for entry in tools.split(TOOL_LIST_SEPARATOR))
+        for tool in (entry.strip() for entry in tools.split(","))
         if TOOL_NAME_PATTERN.fullmatch(tool) is None
     ]
 
