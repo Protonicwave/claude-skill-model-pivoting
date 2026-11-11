@@ -30,6 +30,7 @@ Every brief uses this template, with no section left out:
 
 ```
 Goal: one sentence on what is true when the step is done.
+Task type: the first column of the routing.md row used.
 Skill: the skill to load first, or "none".
 Read: the files and line ranges to read. Point at files rather than summarising them.
 Change: what may be edited, or "nothing".
@@ -52,13 +53,7 @@ Never escalate a step more than once.
 
 ## Log
 
-After every routed step, including each escalation, record it with the script in this skill's directory:
-
-```
-python "<this skill's directory>/router_log.py" add <task-type> <tier> <done|failed|blocked>
-```
-
-`<task-type>` is the first column of the row used. `<tier>` is the subagent that ran the step. Do not log steps kept in the main chat.
+A hook logs every routed step, including each escalation, when the subagent stops. It takes the task type from the brief's `Task type:` line, the tier from the agent's name and the result from the reply's `Result:` line. A brief without `Task type:` is not logged, so never leave the line out. Steps kept in the main chat are not logged.
 
 When the user asks how routing is going, run `python "<this skill's directory>/router_log.py" summary` and point out any task type that fails on its tier more than about one time in four. That row should move up a tier in `routing.md`.
 
