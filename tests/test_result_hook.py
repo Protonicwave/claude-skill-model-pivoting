@@ -5,7 +5,8 @@ import sys
 from pathlib import Path
 
 import pytest
-from result_hook import MAX_BRIEF_SCAN_LINES, log_result
+import validate as validator
+from result_hook import MAX_BRIEF_SCAN_LINES, TASK_TYPE_PATTERN, log_result
 from router_log import summarise
 
 HOOK_PATH = (
@@ -62,6 +63,27 @@ def test_reads_result_through_emphasis_and_case(
     assert logged(log) == {("search", "router-scout"): {result: 1}}
 
 
+@pytest.mark.parametrize(
+    "task_type_line",
+    [
+        "Task type: search.",
+        "Task type: `search`",
+        "Task type: Search (escalated from scout)",
+        "**Task type:** search",
+    ],
+)
+def test_logs_task_type_as_its_first_word(tmp_path: Path, task_type_line: str) -> None:
+    brief = BRIEF.replace("Task type: search", task_type_line)
+    transcript = write_transcript(tmp_path / "agent.jsonl", [user_line(brief)])
+    log = tmp_path / "log.jsonl"
+    log_result(stop_payload(transcript, "Result: `done`"), log)
+    assert logged(log) == {("search", "router-scout"): {"done": 1}}
+
+
+def test_task_type_pattern_matches_validator() -> None:
+    assert TASK_TYPE_PATTERN.pattern == validator.TASK_TYPE_PATTERN.pattern
+
+
 def test_brief_is_the_first_user_line(tmp_path: Path) -> None:
     lines: list[object] = [
         {"type": "system", "content": "start"},
@@ -90,6 +112,8 @@ def test_skips_reply_without_a_known_result(tmp_path: Path, reply: str) -> None:
     [
         [user_line("Goal: x\nSkill: none.")],
         [user_line("Goal: x\nTask type:  \nSkill: none.")],
+        [user_line("Goal: x\nTask type: ?\nSkill: none.")],
+        [user_line("Goal: x\nTask type: edit_code\nSkill: none.")],
         [user_line([{"type": "text", "text": BRIEF}])],
         [{"type": "user"}],
         [{"type": "user", "message": "flat"}],

@@ -8,6 +8,7 @@ only steps that were briefed and answered as the skill describes.
 
 import itertools
 import json
+import re
 import sys
 from pathlib import Path
 from typing import cast
@@ -18,6 +19,8 @@ from router_log import DEFAULT_LOG_PATH, RESULTS, Result, append_step
 ROUTER_AGENT_PREFIX = "router-"
 TASK_TYPE_LABEL = "Task type:"
 RESULT_LABEL = "Result:"
+# Matches the first column of routing.md, which the validator checks.
+TASK_TYPE_PATTERN = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 # The brief opens the transcript, so a long scan only reads the subagent's
 # own work, which can run to thousands of lines.
 MAX_BRIEF_SCAN_LINES = 50
@@ -32,13 +35,27 @@ def labelled_value(text: str, label: str) -> str | None:
     return None
 
 
+def first_word(value: str) -> str:
+    """The value's first word, lower-cased, without code marks or punctuation."""
+    return value.split()[0].strip("`.,;:()").lower()
+
+
 def parse_result(reply: str) -> Result | None:
     value = labelled_value(reply, RESULT_LABEL)
     if value is None:
         return None
-    word = value.split()[0].strip(".").lower()
+    word = first_word(value)
     # Membership in RESULTS is exactly the Literal's set of values.
     return cast(Result, word) if word in RESULTS else None
+
+
+def parse_task_type(brief: str) -> str | None:
+    """The brief's task type, so one routing row logs under one name."""
+    value = labelled_value(brief, TASK_TYPE_LABEL)
+    if value is None:
+        return None
+    word = first_word(value)
+    return word if TASK_TYPE_PATTERN.fullmatch(word) else None
 
 
 def read_brief(transcript: Path) -> str | None:
@@ -71,7 +88,7 @@ def log_result(payload: dict[str, object], log_path: Path) -> None:
         brief = read_brief(Path(transcript))
     except (OSError, UnicodeDecodeError):
         return
-    task_type = labelled_value(brief, TASK_TYPE_LABEL) if brief else None
+    task_type = parse_task_type(brief) if brief else None
     if result is None or task_type is None:
         return
     append_step(log_path, task_type, agent_type, result)
