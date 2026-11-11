@@ -24,6 +24,8 @@ The installer validates every file first, then copies the agents to `~/.claude/a
 
 It also registers the three hooks in `~/.claude/settings.json`, running them with the Python that ran the installer. It owns every hook whose command points into `skills/model-router/` and replaces those on each run; other settings and hooks are kept. If `settings.json` cannot be read as UTF-8 JSON, nothing is installed and the reason is printed. If it cannot be written after the files are copied, the installer says so and exits with status 1, and running it again finishes the job. The file is rewritten with two-space indentation when the hooks change.
 
+Install with no Claude Code session open: a session that changes its settings while the installer writes `settings.json` can lose one of the two changes. To uninstall, remove the three hook entries from `settings.json` before deleting the files. A hook whose script is missing makes Python exit with status 2, which Claude Code treats as a block, so every `Agent` and `Bash` call would be refused.
+
 ## Use
 
 - Lean mode: ask for it, then run `/effort medium`. Run `/effort` with your usual level to end it.
