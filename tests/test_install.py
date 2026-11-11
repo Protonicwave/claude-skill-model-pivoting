@@ -5,7 +5,13 @@ from install import install, run
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL = Path("skills") / "model-router"
 AGENT_NAMES = ["router-expert.md", "router-scout.md", "router-worker.md"]
-SKILL_FILES = ["SKILL.md", "router_log.py", "routing.md"]
+SKILL_FILES = [
+    "SKILL.md",
+    "hook_input.py",
+    "router_log.py",
+    "routing.md",
+    "spawn_hook.py",
+]
 
 
 def test_dry_run_lists_files_and_writes_nothing(tmp_path: Path) -> None:
