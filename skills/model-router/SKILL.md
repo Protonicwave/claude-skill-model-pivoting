@@ -55,7 +55,7 @@ Never escalate a step more than once.
 
 A hook logs every routed step, including each escalation, when the subagent stops. It takes the task type from the brief's `Task type:` line, the tier from the agent's name and the result from the reply's `Result:` line. A brief without `Task type:` is not logged, so never leave the line out. Steps kept in the main chat are not logged.
 
-When the user asks how routing is going, run `python "<this skill's directory>/router_log.py" summary` and point out any task type that fails on its tier more than about one time in four. That row should move up a tier in `routing.md`.
+When the user asks how routing is going or where their tokens went, run `python "<this skill's directory>/usage_report.py"`, adding `--since YYYY-MM-DD` for a recent window. It prints list-price spend per source and model from the transcripts, unrouted spawns, main-chat prompt size, cache misses, five-hour blocks, first-turn context per agent type, and the routed results. Point out any task type that fails on its tier more than about one time in four: that row should move up a tier in `routing.md`. Point out unrouted spawns that cost more than the router tiers together: that work should go through a tier.
 
 ## Other skills
 

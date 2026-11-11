@@ -1,12 +1,17 @@
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from usage_report import (
     UNKNOWN_AGENT_TYPE,
+    Turn,
     Usage,
+    cache_misses,
+    context_deciles,
     cost_usd,
+    first_turn_context,
+    five_hour_blocks,
     format_report,
     read_turns,
     spend_by_source,
@@ -187,10 +192,90 @@ def test_report_names_each_section(tmp_path: Path) -> None:
     unpriced = assistant_line(SMALL, "m2", model="claude-opus-5")
     write_main(tmp_path, "s", [assistant_line(SMALL), unpriced])
     report = format_report(read_turns(tmp_path))
-    assert "Spend by source and model" in report
+    for heading in (
+        "Spend by source and model",
+        "Main chat prompt size",
+        "Cache misses",
+        "Five-hour blocks",
+        "First-turn context",
+    ):
+        assert heading in report
     assert "unpriced: 2.0k tokens" in report
     assert "Unrouted spawns: 0" in report
 
 
+def test_report_without_main_turns_says_so(tmp_path: Path) -> None:
+    write_agent(tmp_path, "a1", "router-scout", [assistant_line(SMALL)])
+    report = format_report(read_turns(tmp_path))
+    assert "too few main-chat turns" in report
+    assert "router-scout" in report
+
+
 def test_report_on_no_turns_says_so() -> None:
     assert format_report([]) == "No assistant turns found."
+
+
+def turn(
+    prompt_tokens: int = 0,
+    write_tokens: int = 0,
+    source: str = "main",
+    at: datetime = datetime(2026, 11, 10, 9, 15, tzinfo=UTC),
+) -> Turn:
+    usage = Usage(
+        input=prompt_tokens, write_5m=0, write_1h=write_tokens, read=0, output=0
+    )
+    return Turn(at, source, f"{source}-{at:%H%M%S}-{prompt_tokens}", OPUS, usage)
+
+
+def test_deciles_of_main_chat_prompt_size() -> None:
+    turns = [turn(prompt_tokens=n * 1_000) for n in range(1, 11)]
+    turns.append(turn(prompt_tokens=999_000, source="router-worker"))
+    assert context_deciles(turns) == [1_900 + 900 * i for i in range(9)]
+
+
+@pytest.mark.parametrize("count", [0, 1])
+def test_deciles_need_two_main_turns(count: int) -> None:
+    assert context_deciles([turn(prompt_tokens=5_000)] * count) == []
+
+
+def test_cache_misses_are_main_turns_writing_over_50k_largest_first() -> None:
+    misses = cache_misses(
+        [
+            turn(write_tokens=50_000),
+            turn(write_tokens=50_001),
+            turn(write_tokens=90_000),
+            turn(write_tokens=80_000, source="router-expert"),
+        ]
+    )
+    assert [miss.usage.write_1h for miss in misses] == [90_000, 50_001]
+
+
+def test_blocks_open_on_the_hour_and_last_five_hours() -> None:
+    day = datetime(2026, 11, 10, tzinfo=UTC)
+    times = [
+        day + timedelta(hours=9, minutes=15),
+        day + timedelta(hours=13, minutes=59),
+        day + timedelta(hours=14),
+        day + timedelta(hours=20, minutes=30),
+    ]
+    blocks = five_hour_blocks([turn(prompt_tokens=1_000_000, at=at) for at in times])
+    assert [(block.start.hour, block.turns) for block in blocks] == [
+        (9, 2),
+        (14, 1),
+        (20, 1),
+    ]
+    assert blocks[0].cost_usd == pytest.approx(8.0)
+
+
+def test_first_turn_context_is_the_median_per_agent_type() -> None:
+    start = datetime(2026, 11, 10, tzinfo=UTC)
+    turns = [
+        Turn(start, "router-scout", "a1", HAIKU, Usage(10_000, 0, 0, 0, 0)),
+        Turn(
+            start + timedelta(1), "router-scout", "a1", HAIKU, Usage(90_000, 0, 0, 0, 0)
+        ),
+        Turn(start, "router-scout", "a2", HAIKU, Usage(20_000, 0, 0, 0, 0)),
+        Turn(start, "router-scout", "a3", HAIKU, Usage(16_000, 0, 0, 0, 0)),
+        Turn(start, "main", "s1", OPUS, Usage(70_000, 0, 0, 0, 0)),
+    ]
+    assert first_turn_context(turns) == {"router-scout": 16_000}

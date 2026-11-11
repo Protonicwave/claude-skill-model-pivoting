@@ -14,8 +14,9 @@ import json
 import sys
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
+from statistics import median, quantiles
 
 from result_hook import ROUTER_AGENT_PREFIX
 from router_log import DEFAULT_LOG_PATH, format_summary, summarise
@@ -30,6 +31,12 @@ SYNTHETIC_MODEL = "<synthetic>"
 # text cannot be an assistant turn, so it is not worth parsing.
 ASSISTANT_MARKER = '"assistant"'
 TOKENS_PER_MILLION = 1_000_000
+MIN_TURNS_FOR_DECILES = 2
+# A turn writing more than this to the cache rewrote most of a long context.
+CACHE_MISS_WRITE_TOKENS = 50_000
+BLOCK_DURATION = timedelta(hours=5)
+MAX_LISTED_CACHE_MISSES = 5
+MAX_LISTED_BLOCKS = 10
 
 type MessageKey = tuple[str, str]
 
@@ -87,6 +94,13 @@ class Turn:
     transcript: str
     model: str
     usage: Usage
+
+
+@dataclass(frozen=True, slots=True)
+class Block:
+    start: datetime
+    turns: int
+    cost_usd: float
 
 
 @dataclass(slots=True)
@@ -246,6 +260,61 @@ def unrouted_totals(spend: dict[tuple[str, str], Spend]) -> tuple[int, float]:
     )
 
 
+def context_deciles(turns: list[Turn]) -> list[int]:
+    """The 10th to 90th percentiles of main-chat prompt size; [] under two turns."""
+    sizes = [turn.usage.prompt_tokens for turn in turns if turn.source == MAIN_SOURCE]
+    if len(sizes) < MIN_TURNS_FOR_DECILES:
+        return []
+    return [round(size) for size in quantiles(sizes, n=10, method="inclusive")]
+
+
+def cache_misses(turns: list[Turn]) -> list[Turn]:
+    """Main-chat turns that rewrote most of a long context, largest first.
+
+    A subagent's first turn always writes its whole context, so only the
+    main chat counts: there a large write means the cache had expired or
+    the model changed.
+    """
+    misses = [
+        turn
+        for turn in turns
+        if turn.source == MAIN_SOURCE
+        and turn.usage.write_5m + turn.usage.write_1h > CACHE_MISS_WRITE_TOKENS
+    ]
+    return sorted(misses, key=lambda turn: -(turn.usage.write_5m + turn.usage.write_1h))
+
+
+def five_hour_blocks(turns: list[Turn]) -> list[Block]:
+    """Group turns into the windows usage limits are counted in, oldest first.
+
+    A window opens on the hour of the first turn after the previous window
+    closed, and stays open for BLOCK_DURATION.
+    """
+    blocks: list[Block] = []
+    for turn in sorted(turns, key=lambda turn: turn.time):
+        cost = cost_usd(turn.model, turn.usage) or 0.0
+        if blocks and turn.time < blocks[-1].start + BLOCK_DURATION:
+            last = blocks[-1]
+            blocks[-1] = Block(last.start, last.turns + 1, last.cost_usd + cost)
+        else:
+            start = turn.time.replace(minute=0, second=0, microsecond=0)
+            blocks.append(Block(start, 1, cost))
+    return blocks
+
+
+def first_turn_context(turns: list[Turn]) -> dict[str, int]:
+    """Median prompt size of each subagent's first turn, per agent type."""
+    first: dict[str, Turn] = {}
+    for turn in turns:
+        current = first.get(turn.transcript)
+        if turn.source != MAIN_SOURCE and (current is None or turn.time < current.time):
+            first[turn.transcript] = turn
+    sizes: dict[str, list[int]] = {}
+    for turn in first.values():
+        sizes.setdefault(turn.source, []).append(turn.usage.prompt_tokens)
+    return {source: round(median(values)) for source, values in sizes.items()}
+
+
 def format_tokens(count: int) -> str:
     return f"{count / 1000:.1f}k"
 
@@ -274,6 +343,57 @@ def format_spend(turns: list[Turn]) -> list[str]:
     return lines
 
 
+def format_context(turns: list[Turn]) -> list[str]:
+    deciles = context_deciles(turns)
+    if not deciles:
+        return ["Main chat prompt size: too few main-chat turns."]
+    sizes = " ".join(format_tokens(size) for size in deciles)
+    return [f"Main chat prompt size per turn, deciles 10% to 90%: {sizes}"]
+
+
+def format_cache_misses(turns: list[Turn]) -> list[str]:
+    misses = cache_misses(turns)
+    cost = sum(cost_usd(turn.model, turn.usage) or 0.0 for turn in misses)
+    lines = [
+        f"Cache misses (main-chat turns writing over "
+        f"{format_tokens(CACHE_MISS_WRITE_TOKENS)} tokens): "
+        f"{len(misses)}, {cost:.2f} USD"
+    ]
+    lines.extend(
+        f"  {turn.time:%Y-%m-%d %H:%M}  {turn.transcript[:8]}  "
+        f"{format_tokens(turn.usage.write_5m + turn.usage.write_1h)} written  "
+        f"{turn.model}"
+        for turn in misses[:MAX_LISTED_CACHE_MISSES]
+    )
+    return lines
+
+
+def format_blocks(turns: list[Turn]) -> list[str]:
+    blocks = five_hour_blocks(turns)
+    highest = max(blocks, key=lambda block: block.cost_usd)
+    typical = median(block.cost_usd for block in blocks)
+    lines = [
+        f"Five-hour blocks: {len(blocks)}, median {typical:.2f} USD, highest "
+        f"{highest.cost_usd:.2f} USD from {highest.start:%Y-%m-%d %H:%M}",
+    ]
+    lines.extend(
+        f"  {block.start:%Y-%m-%d %H:%M}  {block.turns:>5} turns  "
+        f"{block.cost_usd:>8.2f} USD"
+        for block in blocks[-MAX_LISTED_BLOCKS:]
+    )
+    return lines
+
+
+def format_first_turns(turns: list[Turn]) -> list[str]:
+    context = first_turn_context(turns)
+    lines = ["First-turn context per agent type (median prompt tokens)"]
+    lines.extend(
+        f"  {source:<20} {format_tokens(size):>8}"
+        for source, size in sorted(context.items())
+    )
+    return lines if context else [*lines, "  no subagent turns"]
+
+
 def format_report(turns: list[Turn]) -> str:
     if not turns:
         return "No assistant turns found."
@@ -282,7 +402,14 @@ def format_report(turns: list[Turn]) -> str:
         f"{turns[-1].time:%Y-%m-%d %H:%M} UTC. List-price equivalent USD, "
         f"prices as of {PRICES_AS_OF}; runs are sessions for main, spawns otherwise."
     )
-    return "\n".join([header, "", *format_spend(turns)])
+    sections = [
+        format_spend(turns),
+        format_context(turns),
+        format_cache_misses(turns),
+        format_blocks(turns),
+        format_first_turns(turns),
+    ]
+    return "\n\n".join([header, *("\n".join(lines) for lines in sections)])
 
 
 def main() -> int:  # pragma: no cover: argument parsing over tested functions

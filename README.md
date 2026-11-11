@@ -8,6 +8,7 @@ A Claude Code skill that sends delegable work to subagents on fixed models and e
 - `skills/model-router/router_log.py`: records routed steps and summarises results per task type and tier.
 - `skills/model-router/spawn_hook.py`: a PreToolUse hook that runs a general-purpose subagent spawned without a model on sonnet, instead of the main chat's model. Named agents, forks and explicit models are left alone.
 - `skills/model-router/result_hook.py`: a SubagentStop hook that logs each router subagent's step from the brief's `Task type:` line and the reply's `Result:` line.
+- `skills/model-router/usage_report.py`: reads the transcripts under `~/.claude/projects` and reports where the spend went.
 
 ## Install
 
@@ -25,7 +26,7 @@ It also registers the two hooks in `~/.claude/settings.json`, running them with 
 ## Use
 
 - Lean mode: ask for it, then run `/effort medium`. Run `/effort` with your usual level to end it.
-- Routing results: `python ~/.claude/skills/model-router/router_log.py summary`. A task type that fails on its tier more than about one time in four should move up a tier in `routing.md`; reinstall afterwards.
+- Spend and routing results: `python ~/.claude/skills/model-router/usage_report.py [--since YYYY-MM-DD]`. It prints spend per source (the main chat or an agent type) and model, unrouted spawns, main-chat prompt size deciles, cache misses over 50k tokens, five-hour blocks, the median first-turn context per agent type, and the routed results. Figures are list-price equivalents from the dated `PRICES` table in the script, not a bill; models it does not list are shown as unpriced tokens. A task type that fails on its tier more than about one time in four should move up a tier in `routing.md`; reinstall afterwards.
 - To change a tier's model or effort, edit the `model` or `effort` line in its file under `agents/` and reinstall.
 
 ## Test
