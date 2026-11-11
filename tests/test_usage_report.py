@@ -224,7 +224,8 @@ def turn(
     usage = Usage(
         input=prompt_tokens, write_5m=0, write_1h=write_tokens, read=0, output=0
     )
-    return Turn(at, source, f"{source}-{at:%H%M%S}-{prompt_tokens}", OPUS, usage)
+    transcript = f"{source}-{at:%H%M%S}-{prompt_tokens}"
+    return Turn(at, source, transcript, OPUS, usage, opens_transcript=True)
 
 
 def test_deciles_of_main_chat_prompt_size() -> None:
@@ -269,16 +270,21 @@ def test_blocks_open_on_the_hour_and_last_five_hours() -> None:
 
 def test_first_turn_context_is_the_median_per_agent_type() -> None:
     start = datetime(2026, 11, 10, tzinfo=UTC)
+    later = start + timedelta(1)
     turns = [
-        Turn(start, "router-scout", "a1", HAIKU, Usage(10_000, 0, 0, 0, 0)),
-        Turn(
-            start + timedelta(1), "router-scout", "a1", HAIKU, Usage(90_000, 0, 0, 0, 0)
-        ),
-        Turn(start, "router-scout", "a2", HAIKU, Usage(20_000, 0, 0, 0, 0)),
-        Turn(start, "router-scout", "a3", HAIKU, Usage(16_000, 0, 0, 0, 0)),
-        Turn(start, "main", "s1", OPUS, Usage(70_000, 0, 0, 0, 0)),
+        Turn(start, "router-scout", "a1", HAIKU, Usage(10_000, 0, 0, 0, 0), True),
+        Turn(later, "router-scout", "a1", HAIKU, Usage(90_000, 0, 0, 0, 0), False),
+        Turn(start, "router-scout", "a2", HAIKU, Usage(20_000, 0, 0, 0, 0), True),
+        Turn(start, "router-scout", "a3", HAIKU, Usage(16_000, 0, 0, 0, 0), True),
+        Turn(start, "main", "s1", OPUS, Usage(70_000, 0, 0, 0, 0), True),
     ]
     assert first_turn_context(turns) == {"router-scout": 16_000}
+
+
+def test_skips_transcript_that_cannot_be_opened(tmp_path: Path) -> None:
+    write_main(tmp_path, "s", [assistant_line(SMALL)])
+    (tmp_path / "project" / "unreadable.jsonl").mkdir()
+    assert [turn.usage for turn in read_turns(tmp_path)] == [SMALL]
 
 
 def test_agents_of_unknown_type_are_not_counted_as_unrouted(tmp_path: Path) -> None:
@@ -286,3 +292,19 @@ def test_agents_of_unknown_type_are_not_counted_as_unrouted(tmp_path: Path) -> N
     write_agent(tmp_path, "g1", "general-purpose", [assistant_line(SMALL, "m2")])
     spawns, _ = unrouted_totals(spend_by_source(read_turns(tmp_path)))
     assert spawns == 1
+
+
+def test_first_turn_context_leaves_out_agents_started_before_since(
+    tmp_path: Path,
+) -> None:
+    started_before: list[object] = [
+        assistant_line(Usage(16_000, 0, 0, 0, 0), "m1", time="2026-11-09T23:59:00Z"),
+        assistant_line(Usage(90_000, 0, 0, 0, 0), "m2", time="2026-11-10T00:01:00Z"),
+    ]
+    write_agent(tmp_path, "a1", "router-scout", started_before)
+    started_after: list[object] = [
+        assistant_line(Usage(20_000, 0, 0, 0, 0), "m3", time="2026-11-10T00:02:00Z")
+    ]
+    write_agent(tmp_path, "a2", "router-scout", started_after)
+    turns = read_turns(tmp_path, datetime(2026, 11, 10, tzinfo=UTC))
+    assert first_turn_context(turns) == {"router-scout": 20_000}

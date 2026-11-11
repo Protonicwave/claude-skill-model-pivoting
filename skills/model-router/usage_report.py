@@ -94,6 +94,9 @@ class Turn:
     transcript: str
     model: str
     usage: Usage
+    # True for the first turn written to its transcript, kept even when a
+    # --since window drops that turn's predecessors.
+    opens_transcript: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,7 +161,7 @@ def parse_usage(value: object) -> Usage | None:
 
 
 def parse_turn(
-    line: str, source: str, transcript: str
+    line: str, source: str, transcript: str, opens_transcript: bool
 ) -> tuple[MessageKey, Turn] | None:
     """The turn on an assistant line with usage, keyed for deduplication."""
     try:
@@ -176,7 +179,7 @@ def parse_turn(
         return None
     request_id = entry.get("requestId")
     key = (message_id, request_id if isinstance(request_id, str) else "")
-    return key, Turn(when, source, transcript, model, usage)
+    return key, Turn(when, source, transcript, model, usage, opens_transcript)
 
 
 def agent_type(transcript: Path) -> str:
@@ -198,28 +201,44 @@ def transcripts(projects_dir: Path) -> Iterator[tuple[Path, str]]:
         yield path, agent_type(path)
 
 
+def transcript_turns(path: Path, source: str) -> Iterator[tuple[MessageKey, Turn]]:
+    """The turns in one transcript, in the order written.
+
+    A file that cannot be opened, such as one Claude Code deleted after the
+    directory was listed, has no turns.
+    """
+    try:
+        stream = path.open(encoding="utf-8", errors="replace")
+    except OSError:
+        return
+    with stream:
+        opening = True
+        for line in stream:
+            if ASSISTANT_MARKER not in line:
+                continue
+            parsed = parse_turn(line, source, path.stem, opening)
+            if parsed is not None:
+                opening = False
+                yield parsed
+
+
 def read_turns(projects_dir: Path, since: datetime | None = None) -> list[Turn]:
     """Every assistant turn under projects_dir once, oldest first.
 
     Claude Code writes one line per content block, each repeating the
     message's usage, and a resumed session copies earlier lines, so a turn
-    is counted once per (message ID, request ID) across all files.
+    is counted once per (message ID, request ID) across all files. Every
+    turn in the window is held in memory at once.
     """
     seen: set[MessageKey] = set()
     turns: list[Turn] = []
     for path, source in transcripts(projects_dir):
-        with path.open(encoding="utf-8", errors="replace") as stream:
-            for line in stream:
-                parsed = (
-                    parse_turn(line, source, path.stem)
-                    if ASSISTANT_MARKER in line
-                    else None
-                )
-                if parsed is None or parsed[0] in seen:
-                    continue
-                seen.add(parsed[0])
-                if since is None or parsed[1].time >= since:
-                    turns.append(parsed[1])
+        for key, turn in transcript_turns(path, source):
+            if key in seen:
+                continue
+            seen.add(key)
+            if since is None or turn.time >= since:
+                turns.append(turn)
     return sorted(turns, key=lambda turn: turn.time)
 
 
@@ -296,15 +315,11 @@ def five_hour_blocks(turns: list[Turn]) -> list[Block]:
 
 
 def first_turn_context(turns: list[Turn]) -> dict[str, int]:
-    """Median prompt size of each subagent's first turn, per agent type."""
-    first: dict[str, Turn] = {}
-    for turn in turns:
-        current = first.get(turn.transcript)
-        if turn.source != MAIN_SOURCE and (current is None or turn.time < current.time):
-            first[turn.transcript] = turn
+    """Median prompt size of each subagent's opening turn, per agent type."""
     sizes: dict[str, list[int]] = {}
-    for turn in first.values():
-        sizes.setdefault(turn.source, []).append(turn.usage.prompt_tokens)
+    for turn in turns:
+        if turn.opens_transcript and turn.source != MAIN_SOURCE:
+            sizes.setdefault(turn.source, []).append(turn.usage.prompt_tokens)
     return {source: round(median(values)) for source, values in sizes.items()}
 
 
