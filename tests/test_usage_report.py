@@ -124,6 +124,7 @@ def test_unpriced_tokens_are_reported_apart_from_spend(tmp_path: Path) -> None:
         )
         + "\n",
         '{"type": "user", "message": {"content": "assistant"}}\n',
+        '{"type": "user", "message": {"content": "a reply"}}\n',
         json.dumps(assistant_line(SMALL, "msg_x", model="<synthetic>")) + "\n",
         json.dumps(assistant_line(SMALL, "msg_x", time="yesterday")) + "\n",
         json.dumps(assistant_line(SMALL, "msg_x")).replace("1000", "-1") + "\n",
