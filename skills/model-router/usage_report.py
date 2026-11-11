@@ -53,11 +53,17 @@ class Rates:
 
 
 @dataclass(frozen=True, slots=True)
+class LongPrompt:
+    """The rates for a prompt over above_tokens, on a model priced in two tiers."""
+
+    above_tokens: int
+    rates: Rates
+
+
+@dataclass(frozen=True, slots=True)
 class Price:
     rates: Rates
-    # (prompt tokens, rates): a prompt longer than the threshold is priced
-    # at these rates instead, for models priced in two tiers.
-    long_prompt: tuple[int, Rates] | None = None
+    long_prompt: LongPrompt | None = None
 
 
 PRICES_AS_OF = "2026-11-11"
@@ -67,7 +73,7 @@ PRICES: dict[str, Price] = {
     "claude-sonnet-5-5": Price(Rates(2, 2.5, 4, 0.10, 10)),
     "claude-haiku-5-5": Price(
         Rates(0.10, 0.125, 0.20, 0.01, 0.50),
-        long_prompt=(100_000, Rates(0.50, 0.625, 1, 0.05, 2.50)),
+        long_prompt=LongPrompt(100_000, Rates(0.50, 0.625, 1, 0.05, 2.50)),
     ),
 }
 
@@ -120,8 +126,9 @@ def cost_usd(model: str, usage: Usage) -> float | None:
     if price is None:
         return None
     rates = price.rates
-    if price.long_prompt is not None and usage.prompt_tokens > price.long_prompt[0]:
-        rates = price.long_prompt[1]
+    long_prompt = price.long_prompt
+    if long_prompt is not None and usage.prompt_tokens > long_prompt.above_tokens:
+        rates = long_prompt.rates
     return (
         usage.input * rates.base
         + usage.write_5m * rates.write_5m
@@ -131,33 +138,36 @@ def cost_usd(model: str, usage: Usage) -> float | None:
     ) / TOKENS_PER_MILLION
 
 
-def token_count(fields: dict[str, object], key: str) -> int | None:
+def token_count(fields: dict[str, object], key: str) -> int:
+    """The count under key, 0 if absent. Raises ValueError if it is not a count."""
     value = fields.get(key, 0)
     # bool is a subclass of int, and JSON true is not a count.
     if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
         return value
-    return None
+    raise ValueError(f"{key} is not a token count: {value!r}")
 
 
 def parse_usage(value: object) -> Usage | None:
+    """The usage record's counts, or None if any count is malformed."""
     if not isinstance(value, dict):
         return None
     split = value.get("cache_creation")
-    if isinstance(split, dict):
-        writes = (
-            token_count(split, "ephemeral_5m_input_tokens"),
-            token_count(split, "ephemeral_1h_input_tokens"),
+    try:
+        if isinstance(split, dict):
+            write_5m = token_count(split, "ephemeral_5m_input_tokens")
+            write_1h = token_count(split, "ephemeral_1h_input_tokens")
+        else:
+            write_5m = token_count(value, "cache_creation_input_tokens")
+            write_1h = 0
+        return Usage(
+            input=token_count(value, "input_tokens"),
+            write_5m=write_5m,
+            write_1h=write_1h,
+            read=token_count(value, "cache_read_input_tokens"),
+            output=token_count(value, "output_tokens"),
         )
-    else:
-        writes = (token_count(value, "cache_creation_input_tokens"), 0)
-    counts = (
-        token_count(value, "input_tokens"),
-        *writes,
-        token_count(value, "cache_read_input_tokens"),
-        token_count(value, "output_tokens"),
-    )
-    valid = [count for count in counts if count is not None]
-    return Usage(*valid) if len(valid) == len(counts) else None
+    except ValueError:
+        return None
 
 
 def parse_turn(
