@@ -22,8 +22,8 @@ TASK_TYPE_LABEL = "Task type:"
 RESULT_LABEL = "Result:"
 # Matches the first column of routing.md, which the validator checks.
 TASK_TYPE_PATTERN = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
-# The brief opens the transcript, so a long scan only reads the subagent's
-# own work, which can run to thousands of lines.
+# The brief opens the transcript. Past the first few lines comes only the
+# subagent's own work, which can run to thousands of lines, so stop there.
 MAX_BRIEF_SCAN_LINES = 50
 
 
