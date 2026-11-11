@@ -18,9 +18,11 @@ Find the step's row in `routing.md`: the active skill's table if it has one, oth
 
 1. The tier is a subagent, not `main`.
 2. The row's check can confirm the result without trusting the subagent.
-3. The work is much larger than the brief. A step the main chat would finish in under five tool calls stays in the main chat whatever the table says.
+3. The step would bring more text into the main chat than the subagent starts with. File contents, logs and command output stay in the main chat's context and are re-read at the main model's price on every later turn, while a subagent pays once for its starting prompt: about 16k tokens on every tier. `usage_report.py` prints the current figures as first-turn context. A step that reads a few short files or runs one quiet command stays in the main chat whatever the table says.
 
 When no row fits, keep the step in the main chat. When unsure between two tiers, pick the higher one: overpaying costs the price difference, while a failed cheap attempt costs both runs.
+
+Exploration that sweeps many files or directories to answer a question is a `search` step for router-scout, never a built-in agent such as Explore, Plan or general-purpose: those are unrouted, so their results are never logged and no check confirms them. Ask for the answer with paths and line numbers, not file contents.
 
 Never run two subagents that edit the same files at once. Commits, pushes, branch changes and plan updates stay in the main chat.
 
@@ -30,6 +32,7 @@ Every brief uses this template, with no section left out:
 
 ```
 Goal: one sentence on what is true when the step is done.
+Task type: the first column of the routing.md row used.
 Skill: the skill to load first, or "none".
 Read: the files and line ranges to read. Point at files rather than summarising them.
 Change: what may be edited, or "nothing".
@@ -39,6 +42,14 @@ Ruled out: what has already been tried or excluded, with the evidence.
 ```
 
 Leave out the main chat's reasoning about why the code is the way it is, especially for a review. A reviewer who knows the reasons accepts the code.
+
+## Context hygiene
+
+Everything the main chat reads stays in its context until compaction, so keep each read small:
+
+- Search first, then read the lines you need rather than the whole file.
+- Run tests and builds with quiet flags so only failures print, and search a long log rather than printing it.
+- Do not reread what a subagent's Evidence already shows, apart from the one cheap check you rerun before accepting.
 
 ## Accept or escalate
 
@@ -52,15 +63,9 @@ Never escalate a step more than once.
 
 ## Log
 
-After every routed step, including each escalation, record it with the script in this skill's directory:
+A hook logs every routed step, including each escalation, when the subagent stops. It takes the task type from the brief's `Task type:` line, the tier from the agent's name and the result from the reply's `Result:` line. A brief without `Task type:` is not logged, so never leave the line out. Steps kept in the main chat are not logged.
 
-```
-python "<this skill's directory>/router_log.py" add <task-type> <tier> <done|failed|blocked>
-```
-
-`<task-type>` is the first column of the row used. `<tier>` is the subagent that ran the step. Do not log steps kept in the main chat.
-
-When the user asks how routing is going, run `python "<this skill's directory>/router_log.py" summary` and point out any task type that fails on its tier more than about one time in four. That row should move up a tier in `routing.md`.
+When the user asks how routing is going or where their tokens went, run `python "<this skill's directory>/usage_report.py"`, adding `--since YYYY-MM-DD` for a recent window. It prints list-price spend per source and model from the transcripts, unrouted spawns, main-chat prompt size, cache misses, five-hour blocks, first-turn context per agent type, and the routed results. Point out any task type that fails on its tier more than about one time in four: that row should move up a tier in `routing.md`. Point out unrouted spawns that cost more than the router tiers together: that work should go through a tier.
 
 ## Other skills
 

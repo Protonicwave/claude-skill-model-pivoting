@@ -13,6 +13,7 @@ When a skill's table below covers the step, it takes precedence over the general
 | run-checks | router-scout | router-scout | the command's exit code and output |
 | routine-edit | router-worker | router-worker | the named test, build or checker passes |
 | mechanical-fix | router-worker | router-worker | the linter, type-checker or build is clean |
+| web-research | router-worker | router-worker | each quoted passage appears at its cited URL |
 | review | router-expert | router-expert | each finding settled in the main chat with a test or a rerun |
 | design | main | router-expert | the main chat reviews the proposal before acting on it |
 | hard-debug | main | router-expert | a reproducing test that now passes |

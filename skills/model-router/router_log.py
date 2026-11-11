@@ -1,16 +1,13 @@
 """Record routed steps and summarise how each tier performs.
 
-Record a step:  python router_log.py add <task-type> <tier> <done|failed|blocked>
-Summarise:      python router_log.py summary
-
 The log is one JSON object per line at ~/.claude/model-router/log.jsonl,
 outside every project so no repository gains a stray file. Each line keeps
-its time so the log can be read for a given week.
+its time so the log can be read for a given week. Two steps logged at the
+same instant can interleave on Windows, where appends are not atomic; the
+summary then skips the damaged line and reports it as malformed.
 """
 
-import argparse
 import json
-import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -40,24 +37,44 @@ def append_step(log_path: Path, task_type: str, tier: str, result: Result) -> No
         stream.write(json.dumps(entry) + "\n")
 
 
-def parse_entry(line: str) -> tuple[str, str, str] | None:
-    """Return (task_type, tier, result) for a well-formed line, else None."""
+def parse_time(value: object) -> datetime | None:
+    """An ISO 8601 time, read as UTC when it names no zone."""
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def parse_entry(line: str) -> tuple[datetime, str, str, str] | None:
+    """Return (time, task_type, tier, result) for a well-formed line, else None."""
     try:
         entry = json.loads(line)
     except json.JSONDecodeError:
         return None
     if not isinstance(entry, dict):
         return None
+    logged_at = parse_time(entry.get("time"))
     task_type, tier, result = (
         entry.get(key) for key in ("task_type", "tier", "result")
     )
-    if isinstance(task_type, str) and isinstance(tier, str) and result in RESULTS:
-        return task_type, tier, str(result)
+    if (
+        logged_at is not None
+        and isinstance(task_type, str)
+        and isinstance(tier, str)
+        and result in RESULTS
+    ):
+        return logged_at, task_type, tier, str(result)
     return None
 
 
-def summarise(log_path: Path) -> Summary:
-    """Count results per (task type, tier). A missing log is an empty summary."""
+def summarise(log_path: Path, since: datetime | None = None) -> Summary:
+    """Count results per (task type, tier) from since onwards.
+
+    A missing log is an empty summary.
+    """
     counts: defaultdict[tuple[str, str], Counter[str]] = defaultdict(Counter)
     skipped_lines = 0
     if not log_path.exists():
@@ -68,8 +85,9 @@ def summarise(log_path: Path) -> Summary:
             if parsed is None:
                 skipped_lines += 1
                 continue
-            task_type, tier, result = parsed
-            counts[(task_type, tier)][result] += 1
+            logged_at, task_type, tier, result = parsed
+            if since is None or logged_at >= since:
+                counts[(task_type, tier)][result] += 1
     return Summary(counts=dict(counts), skipped_lines=skipped_lines)
 
 
@@ -85,26 +103,3 @@ def format_summary(summary: Summary) -> str:
     if summary.skipped_lines:
         lines.append(f"Skipped {summary.skipped_lines} malformed line(s).")
     return "\n".join(lines)
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Record or summarise routed steps.")
-    commands = parser.add_subparsers(dest="command", required=True)
-    add = commands.add_parser("add")
-    add.add_argument("task_type")
-    add.add_argument("tier")
-    add.add_argument("result", choices=RESULTS)
-    commands.add_parser("summary")
-    arguments = parser.parse_args()
-
-    if arguments.command == "add":
-        append_step(
-            DEFAULT_LOG_PATH, arguments.task_type, arguments.tier, arguments.result
-        )
-    else:
-        print(format_summary(summarise(DEFAULT_LOG_PATH)))
-    return 0
-
-
-if __name__ == "__main__":  # pragma: no cover: argument parsing over tested functions
-    sys.exit(main())
