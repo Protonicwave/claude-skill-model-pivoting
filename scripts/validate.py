@@ -152,7 +152,8 @@ def check_skill(skill_dir: Path, agent_names: set[str]) -> list[str]:
     if missing:
         return [f"{path}: missing" for path in missing]
     fields, errors = check_frontmatter(skill_path)
-    if TASK_TYPE_LABEL not in skill_path.read_text(encoding="utf-8"):
+    skill_lines = skill_path.read_text(encoding="utf-8").splitlines()
+    if not any(line.lstrip().startswith(TASK_TYPE_LABEL) for line in skill_lines):
         errors.append(
             f"{skill_path}: brief template has no '{TASK_TYPE_LABEL}' line, "
             "so the result hook cannot log routed steps"

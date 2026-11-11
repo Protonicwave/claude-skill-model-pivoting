@@ -102,10 +102,17 @@ def test_accepts_mcp_tool(tmp_path: Path) -> None:
     assert validate(tmp_path) == []
 
 
-def test_rejects_brief_template_without_task_type(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Body.",
+        "The hook reads the brief's `Task type:` line.",
+    ],
+)
+def test_rejects_brief_template_without_task_type(tmp_path: Path, body: str) -> None:
     write_repository(tmp_path)
     skill_path = tmp_path / "skills" / "model-router" / "SKILL.md"
-    skill_path.write_text("---\nname: model-router\n---\nBody.", encoding="utf-8")
+    skill_path.write_text(f"---\nname: model-router\n---\n{body}", encoding="utf-8")
     errors = validate(tmp_path)
     assert len(errors) == 1
     assert "no 'Task type:' line" in errors[0]
