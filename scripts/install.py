@@ -157,7 +157,10 @@ def with_router_hooks(hooks: HookEvents, target_root: Path) -> HookEvents:
     merged: HookEvents = {}
     for event, groups in hooks.items():
         kept = without_router_hooks(groups)
-        if kept or not groups:
+        # An event the user left empty stays, so an untouched file compares
+        # equal and is not rewritten.
+        held_only_router_hooks = bool(groups) and not kept
+        if not held_only_router_hooks:
             merged[event] = kept
     for event, group in router_hook_groups(target_root):
         merged.setdefault(event, []).append(group)
