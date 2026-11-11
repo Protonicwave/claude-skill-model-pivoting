@@ -18,9 +18,11 @@ Find the step's row in `routing.md`: the active skill's table if it has one, oth
 
 1. The tier is a subagent, not `main`.
 2. The row's check can confirm the result without trusting the subagent.
-3. The work is much larger than the brief. A step the main chat would finish in under five tool calls stays in the main chat whatever the table says.
+3. The step would bring more text into the main chat than the subagent starts with. File contents, logs and command output stay in the main chat's context and are re-read at the main model's price on every later turn, while a subagent pays once for its starting prompt: about 16k tokens for router-scout and more for the worker and expert, whose instructions are longer. `usage_report.py` prints the current figures as first-turn context. A step that reads a few short files or runs one quiet command stays in the main chat whatever the table says.
 
 When no row fits, keep the step in the main chat. When unsure between two tiers, pick the higher one: overpaying costs the price difference, while a failed cheap attempt costs both runs.
+
+Exploration that sweeps many files or directories to answer a question is a `search` step for router-scout, never a built-in agent such as Explore, Plan or general-purpose: those are unrouted, so their results are never logged and no check confirms them. Ask for the answer with paths and line numbers, not file contents.
 
 Never run two subagents that edit the same files at once. Commits, pushes, branch changes and plan updates stay in the main chat.
 
@@ -40,6 +42,14 @@ Ruled out: what has already been tried or excluded, with the evidence.
 ```
 
 Leave out the main chat's reasoning about why the code is the way it is, especially for a review. A reviewer who knows the reasons accepts the code.
+
+## Context hygiene
+
+Everything the main chat reads stays in its context until compaction, so keep each read small:
+
+- Search first, then read the lines you need rather than the whole file.
+- Run tests and builds with quiet flags so only failures print, and search a long log rather than printing it.
+- Do not reread what a subagent's Evidence already shows, apart from the one cheap check you rerun before accepting.
 
 ## Accept or escalate
 
