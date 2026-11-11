@@ -6,6 +6,7 @@ line of its reply. A step missing either is not logged, so the log holds
 only steps that were briefed and answered as the skill describes.
 """
 
+import contextlib
 import itertools
 import json
 import re
@@ -91,7 +92,9 @@ def log_result(payload: dict[str, object], log_path: Path) -> None:
     task_type = parse_task_type(brief) if brief else None
     if result is None or task_type is None:
         return
-    append_step(log_path, task_type, agent_type, result)
+    # A lost log line costs one count; a failing hook would interrupt the session.
+    with contextlib.suppress(OSError):
+        append_step(log_path, task_type, agent_type, result)
 
 
 def main() -> int:  # pragma: no cover: wiring, proved by the subprocess tests

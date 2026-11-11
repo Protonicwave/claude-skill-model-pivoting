@@ -211,3 +211,19 @@ def test_hook_process_exits_cleanly_on_malformed_input(tmp_path: Path) -> None:
     assert completed.returncode == 0
     assert completed.stdout == b""
     assert not (tmp_path / ".claude").exists()
+
+
+def test_skips_log_that_cannot_be_written(tmp_path: Path) -> None:
+    transcript = write_transcript(tmp_path / "agent.jsonl", [user_line(BRIEF)])
+    blocker = tmp_path / "blocker"
+    blocker.write_text("a file where the log directory should be", encoding="utf-8")
+    log_result(stop_payload(transcript), blocker / "log.jsonl")
+    assert blocker.is_file()
+
+
+def test_reads_a_brief_longer_than_a_read_buffer(tmp_path: Path) -> None:
+    long_brief = BRIEF + "\nRead:\n" + "x" * 1_000_000
+    transcript = write_transcript(tmp_path / "agent.jsonl", [user_line(long_brief)])
+    log = tmp_path / "log.jsonl"
+    log_result(stop_payload(transcript), log)
+    assert logged(log) == {("search", "router-scout"): {"done": 1}}
