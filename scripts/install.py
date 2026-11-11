@@ -89,11 +89,16 @@ def parse_hook_events(value: object) -> HookEvents:
 def read_settings(path: Path) -> Settings:
     """Parse settings.json; a missing or blank file is empty settings.
 
-    Raises ValueError naming the file if it is not a JSON object with a
-    readable "hooks" object.
+    Raises ValueError naming the file if it cannot be read as UTF-8 or is
+    not a JSON object with a readable "hooks" object.
     """
-    # utf-8-sig: Windows PowerShell writes a byte order mark that JSON rejects.
-    text = path.read_text(encoding="utf-8-sig") if path.exists() else ""
+    try:
+        # utf-8-sig: Windows PowerShell writes a byte order mark JSON rejects.
+        text = path.read_text(encoding="utf-8-sig") if path.exists() else ""
+    except UnicodeDecodeError as error:
+        raise ValueError(f"{path} is not UTF-8: {error}") from error
+    except OSError as error:
+        raise ValueError(f"{path} cannot be read: {error}") from error
     if not text.strip():
         return Settings(document={}, hooks={})
     try:

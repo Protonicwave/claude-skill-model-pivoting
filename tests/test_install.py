@@ -253,3 +253,24 @@ def test_reads_settings_written_with_a_byte_order_mark(tmp_path: Path) -> None:
     (tmp_path / "settings.json").write_text(json.dumps(document), encoding="utf-8-sig")
     assert run(REPO_ROOT, tmp_path, dry_run=False) == 0
     assert read_settings(tmp_path)["hooks"]["SessionStart"] == [FOREIGN_SESSION_HOOK]
+
+
+def test_refuses_settings_that_are_not_utf8(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = tmp_path / "settings.json"
+    path.write_text('{"hooks": {}}', encoding="utf-16")
+    assert run(REPO_ROOT, tmp_path, dry_run=False) == 1
+    output = capsys.readouterr().out
+    assert f"Not installed. {path} is not UTF-8" in output
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["settings.json"]
+
+
+def test_refuses_settings_that_cannot_be_read(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = tmp_path / "settings.json"
+    path.mkdir()
+    assert run(REPO_ROOT, tmp_path, dry_run=False) == 1
+    assert f"Not installed. {path} cannot be read" in capsys.readouterr().out
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["settings.json"]
