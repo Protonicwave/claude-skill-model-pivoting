@@ -1,16 +1,13 @@
 """Record routed steps and summarise how each tier performs.
 
-Record a step:  python router_log.py add <task-type> <tier> <done|failed|blocked>
-Summarise:      python router_log.py summary
-
 The log is one JSON object per line at ~/.claude/model-router/log.jsonl,
 outside every project so no repository gains a stray file. Each line keeps
-its time so the log can be read for a given week.
+its time so the log can be read for a given week. Two steps logged at the
+same instant can interleave on Windows, where appends are not atomic; the
+summary then skips the damaged line and reports it as malformed.
 """
 
-import argparse
 import json
-import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -85,26 +82,3 @@ def format_summary(summary: Summary) -> str:
     if summary.skipped_lines:
         lines.append(f"Skipped {summary.skipped_lines} malformed line(s).")
     return "\n".join(lines)
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Record or summarise routed steps.")
-    commands = parser.add_subparsers(dest="command", required=True)
-    add = commands.add_parser("add")
-    add.add_argument("task_type")
-    add.add_argument("tier")
-    add.add_argument("result", choices=RESULTS)
-    commands.add_parser("summary")
-    arguments = parser.parse_args()
-
-    if arguments.command == "add":
-        append_step(
-            DEFAULT_LOG_PATH, arguments.task_type, arguments.tier, arguments.result
-        )
-    else:
-        print(format_summary(summarise(DEFAULT_LOG_PATH)))
-    return 0
-
-
-if __name__ == "__main__":  # pragma: no cover: argument parsing over tested functions
-    sys.exit(main())

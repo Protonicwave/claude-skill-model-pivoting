@@ -5,7 +5,7 @@ A Claude Code skill that sends delegable work to subagents on fixed models and e
 - `agents/`: the three tiers. `router-scout` (haiku, low effort), `router-worker` (sonnet, medium), `router-expert` (opus, high). Each lists its tools, because an agent without a `tools` line receives every tool in the session and starts with a far larger prompt; the validator rejects an agent without one. The scout is told never to edit, but it has Bash, so that rule rests on its instructions rather than its tools.
 - `skills/model-router/SKILL.md`: when to delegate, the brief template, how to accept or escalate a result, and lean mode.
 - `skills/model-router/routing.md`: which tier handles each task type normally and in lean mode, with tables for the engineer, writing, latex and web-ui-craft skills.
-- `skills/model-router/router_log.py`: records routed steps and summarises results per task type and tier.
+- `skills/model-router/router_log.py`: the routed-step log the result hook writes and the report summarises.
 - `skills/model-router/spawn_hook.py`: a PreToolUse hook that runs a general-purpose subagent spawned without a model on sonnet, instead of the main chat's model. Named agents, forks and explicit models are left alone.
 - `skills/model-router/test_output_hook.py`: a PreToolUse hook that adds the quiet flag to a bare `pytest`, `python -m pytest`, `cargo test` or `npm test` command, so passing tests do not fill the main chat's context. A command with a pipe, `&&`, redirection, an expansion or its own verbosity flag is left alone.
 - `skills/model-router/result_hook.py`: a SubagentStop hook that logs each router subagent's step from the brief's `Task type:` line and the reply's `Result:` line.
