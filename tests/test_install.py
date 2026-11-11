@@ -8,6 +8,7 @@ AGENT_NAMES = ["router-expert.md", "router-scout.md", "router-worker.md"]
 SKILL_FILES = [
     "SKILL.md",
     "hook_input.py",
+    "result_hook.py",
     "router_log.py",
     "routing.md",
     "spawn_hook.py",
