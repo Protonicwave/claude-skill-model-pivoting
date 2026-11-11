@@ -2,7 +2,7 @@
 
 A Claude Code skill that sends delegable work to subagents on fixed models and effort levels, so the main chat keeps one model and its prompt cache stays warm.
 
-- `agents/`: the three tiers. `router-scout` (haiku, low effort), `router-worker` (sonnet, medium), `router-expert` (opus, high). The scout is told never to edit, but it has Bash, so that rule rests on its instructions rather than its tools.
+- `agents/`: the three tiers. `router-scout` (haiku, low effort), `router-worker` (sonnet, medium), `router-expert` (opus, high). Each lists its tools, because an agent without a `tools` line receives every tool in the session and starts with a far larger prompt; the validator rejects an agent without one. The scout is told never to edit, but it has Bash, so that rule rests on its instructions rather than its tools.
 - `skills/model-router/SKILL.md`: when to delegate, the brief template, how to accept or escalate a result, and lean mode.
 - `skills/model-router/routing.md`: which tier handles each task type normally and in lean mode, with tables for the engineer, writing, latex and web-ui-craft skills.
 - `skills/model-router/router_log.py`: records routed steps and summarises results per task type and tier.

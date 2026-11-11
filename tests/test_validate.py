@@ -1,6 +1,8 @@
 from pathlib import Path
 
 import pytest
+import validate as validator
+from result_hook import TASK_TYPE_LABEL
 from validate import read_frontmatter, validate
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -20,6 +22,7 @@ def valid_fields(name: str) -> dict[str, str]:
         "description": "Does a thing.",
         "model": "haiku",
         "effort": "low",
+        "tools": "Read, Grep",
     }
 
 
@@ -28,7 +31,7 @@ def write_skill(root: Path, description: str, rows: list[str]) -> None:
     skill.mkdir(parents=True, exist_ok=True)
     frontmatter = ["---", "name: model-router", f"description: {description}", "---"]
     (skill / "SKILL.md").write_text(
-        "\n".join([*frontmatter, "Body."]), encoding="utf-8"
+        "\n".join([*frontmatter, "Task type: the row used."]), encoding="utf-8"
     )
     (skill / "routing.md").write_text(
         "\n".join([*TABLE_HEADER, *rows]), encoding="utf-8"
@@ -67,6 +70,9 @@ def test_reads_quoted_values() -> None:
         ("effort", "extreme", "unknown effort 'extreme'"),
         ("name", "other", "name 'other' does not match file name 'a'"),
         ("description", ">", "multi-line value for 'description'"),
+        ("tools", "Read Grep", "tool 'Read Grep' is not a tool name"),
+        ("tools", "Read, grep", "tool 'grep' is not a tool name"),
+        ("tools", "Read,", "tool '' is not a tool name"),
     ],
 )
 def test_rejects_bad_agent_value(
@@ -79,12 +85,34 @@ def test_rejects_bad_agent_value(
     assert expected in errors[0]
 
 
-def test_rejects_missing_field(tmp_path: Path) -> None:
+@pytest.mark.parametrize("field", ["effort", "tools"])
+def test_rejects_missing_field(tmp_path: Path, field: str) -> None:
     write_repository(tmp_path)
     fields = valid_fields("a")
-    del fields["effort"]
+    del fields[field]
     write_agent(tmp_path, "a", fields)
-    assert any("missing field 'effort'" in error for error in validate(tmp_path))
+    assert validate(tmp_path) == [
+        f"{tmp_path / 'agents' / 'a.md'}: missing field '{field}'"
+    ]
+
+
+def test_accepts_mcp_tool(tmp_path: Path) -> None:
+    write_repository(tmp_path)
+    write_agent(tmp_path, "a", {**valid_fields("a"), "tools": "Read, mcp__ide__run"})
+    assert validate(tmp_path) == []
+
+
+def test_rejects_brief_template_without_task_type(tmp_path: Path) -> None:
+    write_repository(tmp_path)
+    skill_path = tmp_path / "skills" / "model-router" / "SKILL.md"
+    skill_path.write_text("---\nname: model-router\n---\nBody.", encoding="utf-8")
+    errors = validate(tmp_path)
+    assert len(errors) == 1
+    assert "no 'Task type:' line" in errors[0]
+
+
+def test_task_type_label_matches_result_hook() -> None:
+    assert validator.TASK_TYPE_LABEL == TASK_TYPE_LABEL
 
 
 def test_rejects_agent_without_frontmatter(tmp_path: Path) -> None:

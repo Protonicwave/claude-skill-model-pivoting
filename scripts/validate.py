@@ -6,7 +6,13 @@ from pathlib import Path
 MODEL_ALIASES = frozenset({"haiku", "sonnet", "opus", "fable", "inherit"})
 MODEL_ID_PATTERN = re.compile(r"claude-[a-z0-9-]+")
 EFFORT_LEVELS = frozenset({"low", "medium", "high", "xhigh", "max"})
-REQUIRED_AGENT_FIELDS = ("name", "description", "model", "effort")
+# Without `tools` an agent receives every tool the session has, and the tool
+# definitions alone more than double its first prompt.
+REQUIRED_AGENT_FIELDS = ("name", "description", "model", "effort", "tools")
+TOOL_LIST_SEPARATOR = ","
+# Claude Code ignores a tool name it does not recognise, so a lower-case or
+# space-separated entry silently removes the tool rather than failing.
+TOOL_NAME_PATTERN = re.compile(r"[A-Z][A-Za-z]*|mcp__[A-Za-z0-9_-]+")
 FRONTMATTER_DELIMITER = "---"
 MAX_FRONTMATTER_LINES = 50
 # YAML block scalar markers: the value continues on later lines, which the
@@ -14,6 +20,8 @@ MAX_FRONTMATTER_LINES = 50
 MULTI_LINE_MARKERS = frozenset({">", "|", ">-", "|-"})
 SKILL_DIR = Path("skills") / "model-router"
 INLINE_TIER = "main"
+# The result hook logs a routed step only when the brief carries this label.
+TASK_TYPE_LABEL = "Task type:"
 TIER_HEADERS = frozenset({"Tier", "Lean tier"})
 TASK_TYPE_PATTERN = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 # Claude Code truncates the description at this length in the skill listing,
@@ -78,7 +86,18 @@ def check_agent(path: Path) -> list[str]:
     if effort and effort not in EFFORT_LEVELS:
         expected = ", ".join(sorted(EFFORT_LEVELS))
         errors.append(f"{path}: unknown effort '{effort}', expected one of {expected}")
+    errors.extend(check_tools(path, fields.get("tools", "")))
     return errors
+
+
+def check_tools(path: Path, tools: str) -> list[str]:
+    if not tools:
+        return []  # reported as a missing field
+    return [
+        f"{path}: tool '{tool}' is not a tool name such as Read or mcp__server__tool"
+        for tool in (entry.strip() for entry in tools.split(TOOL_LIST_SEPARATOR))
+        if TOOL_NAME_PATTERN.fullmatch(tool) is None
+    ]
 
 
 def table_cells(line: str) -> list[str]:
@@ -133,6 +152,11 @@ def check_skill(skill_dir: Path, agent_names: set[str]) -> list[str]:
     if missing:
         return [f"{path}: missing" for path in missing]
     fields, errors = check_frontmatter(skill_path)
+    if TASK_TYPE_LABEL not in skill_path.read_text(encoding="utf-8"):
+        errors.append(
+            f"{skill_path}: brief template has no '{TASK_TYPE_LABEL}' line, "
+            "so the result hook cannot log routed steps"
+        )
     description = fields.get("description", "")
     if len(description) > MAX_LISTING_CHARACTERS:
         errors.append(
