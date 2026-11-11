@@ -238,7 +238,10 @@ def spend_by_source(turns: list[Turn]) -> dict[tuple[str, str], Spend]:
 
 
 def is_unrouted(source: str) -> bool:
-    return source != MAIN_SOURCE and not source.startswith(ROUTER_AGENT_PREFIX)
+    """A subagent spawned outside the router; one of unknown type may be either."""
+    return source not in {MAIN_SOURCE, UNKNOWN_AGENT_TYPE} and not source.startswith(
+        ROUTER_AGENT_PREFIX
+    )
 
 
 def unrouted_totals(spend: dict[tuple[str, str], Spend]) -> tuple[int, float]:

@@ -279,3 +279,10 @@ def test_first_turn_context_is_the_median_per_agent_type() -> None:
         Turn(start, "main", "s1", OPUS, Usage(70_000, 0, 0, 0, 0)),
     ]
     assert first_turn_context(turns) == {"router-scout": 16_000}
+
+
+def test_agents_of_unknown_type_are_not_counted_as_unrouted(tmp_path: Path) -> None:
+    write_agent(tmp_path, "u1", None, [assistant_line(SMALL, "m1")])
+    write_agent(tmp_path, "g1", "general-purpose", [assistant_line(SMALL, "m2")])
+    spawns, _ = unrouted_totals(spend_by_source(read_turns(tmp_path)))
+    assert spawns == 1
