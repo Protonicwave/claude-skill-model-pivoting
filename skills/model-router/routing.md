@@ -41,10 +41,10 @@ When a skill's table below covers the step, it takes precedence over the general
 | writing-find-sources | router-worker | router-worker | verify.py confirms each source |
 | writing-verify | router-scout | router-scout | the output of verify.py |
 | writing-claim-support | router-worker | router-worker | each verdict other than supported quotes the claim's words, settled in the main chat against the quote |
-| writing-cold-read | router-worker | router-worker | each reported passage is quoted word for word from the draft, settled in the main chat |
+| writing-cold-read | router-scout | router-scout | each reported passage is quoted word for word from the draft, settled in the main chat |
 | writing-examiner | router-expert | router-expert | each band quotes the rubric and the draft word for word, settled in the main chat |
 
-`writing-find-sources` searches the web, which router-scout cannot. The three review passes start the subagent without the writing skill, so it reads the draft as its reader or examiner would.
+`writing-find-sources` searches the web, which router-scout cannot. The three review passes start the subagent without the writing skill, so it reads the draft as its reader or examiner would. The cold reader runs on the smallest tier because it stands in for a reader who knows less than the writer.
 
 ## latex
 
